@@ -1,0 +1,1592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="期权交易">
+<title>条件期权交易 · TOS</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg:      #0a0d13;
+  --panel:   #10141e;
+  --card:    #141926;
+  --border:  #1c2336;
+  --accent:  #00d4aa;
+  --blue:    #4f8fff;
+  --red:     #ff4d6a;
+  --green:   #00d4aa;
+  --yellow:  #f5c842;
+  --text:    #d8dde8;
+  --muted:   #4a5270;
+  --mono:    'JetBrains Mono', monospace;
+  --sans:    'Inter', sans-serif;
+}
+
+/* ── RESET ── */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+/* ── ROOT LAYOUT: fixed shell, scrollable content ── */
+html { height: 100%; }
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  /* No overflow hidden on body — let pages scroll naturally */
+}
+
+/* Top bar: fixed at top */
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  height: 54px;
+  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(54px + env(safe-area-inset-top, 0px));
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 0;
+}
+.topbar-inner {
+  width: 100%;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 10px;
+}
+
+/* Tab bar: fixed at bottom */
+.tabs {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 100;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  display: flex;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Pages: each page is a normal block, hidden/shown */
+/* The KEY trick: pages scroll normally — no fixed height containers */
+.page {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  /* Offset for fixed topbar + tabbar */
+  padding-top: calc(54px + env(safe-area-inset-top, 0px) + 12px);
+  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 20px);
+  padding-left: 14px;
+  padding-right: 14px;
+  min-height: 100vh;
+}
+.page.active { display: flex; }
+
+/* ── Top bar content ── */
+.logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: .5px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.live-dot {
+  width: 7px; height: 7px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(1.4)} }
+.top-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.conn-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.conn-badge .dot { width: 6px; height: 6px; border-radius: 50%; }
+.btn-api {
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-api.on { border-color: var(--red); color: var(--red); }
+
+/* ── Tabs ── */
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 10px 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 10px;
+  cursor: pointer;
+  position: relative;
+}
+.tab .ti { font-size: 18px; line-height: 1; }
+.tab.active { color: var(--accent); }
+.tab.active::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 20%; right: 20%;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 0 0 2px 2px;
+}
+.tab-badge {
+  position: absolute;
+  top: 6px; right: calc(50% - 20px);
+  background: var(--red);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+/* ── Cards ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  width: 100%;
+}
+.card-head {
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+.ch-tag {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.tag-buy  { background: rgba(0,212,170,.15); color: var(--green); }
+.tag-oco  { background: rgba(79,143,255,.15); color: var(--blue); }
+.card-body { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Form ── */
+.field { display: flex; flex-direction: column; gap: 5px; }
+label { font-size: 11px; font-weight: 500; color: var(--muted); }
+input, select {
+  width: 100%;
+  height: 46px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 0 12px;
+  outline: none;
+  -webkit-appearance: none;
+}
+input:focus, select:focus { border-color: var(--accent); }
+input::placeholder { color: var(--muted); font-size: 12px; }
+input[readonly] {
+  color: var(--blue);
+  border-color: rgba(79,143,255,.25);
+  background: rgba(79,143,255,.05);
+}
+select option { background: #1a2030; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* ── Toggles ── */
+.toggle-group, .dir-group {
+  display: flex;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  height: 46px;
+}
+.toggle-group button, .dir-group button {
+  flex: 1; background: transparent; border: none;
+  color: var(--muted); font-family: var(--mono);
+  font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.active-call { background: rgba(0,212,170,.15) !important; color: var(--green) !important; }
+.active-put  { background: rgba(255,77,106,.15) !important; color: var(--red) !important; }
+.active-above { background: rgba(0,212,170,.15) !important; color: var(--green) !important; }
+.active-below { background: rgba(255,77,106,.15) !important; color: var(--red) !important; }
+
+/* ── Load exp ── */
+.btn-load {
+  height: 46px; padding: 0 14px; flex-shrink: 0;
+  background: rgba(79,143,255,.1);
+  border: 1.5px solid rgba(79,143,255,.3);
+  border-radius: 10px; color: var(--blue);
+  font-family: var(--mono); font-size: 11px; font-weight: 700; cursor: pointer;
+  white-space: nowrap;
+}
+.row-load { display: flex; gap: 8px; align-items: flex-end; }
+.row-load .field { flex: 1; min-width: 0; }
+
+/* ── Mid info ── */
+.mid-info {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(79,143,255,.06);
+  border: 1px solid rgba(79,143,255,.2);
+  border-radius: 10px;
+}
+.mi-label { font-size: 10px; color: var(--muted); }
+.mi-val   { font-family: var(--mono); font-size: 13px; color: var(--blue); font-weight: 700; }
+.mid-note { font-size: 10px; color: var(--muted); line-height: 1.6; }
+
+/* ── OCO targets ── */
+.target-row {
+  display: grid; grid-template-columns: 1fr 1fr 46px; gap: 8px; align-items: flex-end;
+  margin-bottom: 10px;
+}
+.btn-rm {
+  width: 46px; height: 46px;
+  background: rgba(255,77,106,.08);
+  border: 1.5px solid rgba(255,77,106,.2);
+  border-radius: 10px; color: var(--red);
+  font-size: 20px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-add-target {
+  width: 100%; height: 44px;
+  background: transparent;
+  border: 1.5px dashed var(--border);
+  border-radius: 10px; color: var(--muted);
+  font-family: var(--mono); font-size: 11px; cursor: pointer;
+}
+.sep {
+  font-size: 10px; font-weight: 600; letter-spacing: 1px;
+  color: var(--muted); text-transform: uppercase;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.total-ok  { display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;font-family:var(--mono);font-size:11px;margin-top:2px;background:rgba(0,212,170,.08);color:var(--green);border:1px solid rgba(0,212,170,.2); }
+.total-bad { display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;font-family:var(--mono);font-size:11px;margin-top:2px;background:rgba(255,77,106,.08);color:var(--red);border:1px solid rgba(255,77,106,.2); }
+
+/* ── Submit ── */
+.btn-submit {
+  width: 100%; height: 54px; border: none; border-radius: 14px;
+  font-family: var(--mono); font-size: 14px; font-weight: 700;
+  letter-spacing: 1px; cursor: pointer; text-transform: uppercase;
+  background: var(--green); color: var(--bg);
+}
+
+/* ── Quote ── */
+.quote-hero { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+.qh-sym   { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.qh-price { font-family: var(--mono); font-size: 38px; font-weight: 700; color: #fff; }
+.qh-chg   { font-family: var(--mono); font-size: 14px; margin-top: 4px; }
+.q4grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border-radius: 10px; overflow: hidden; margin-top: 12px; }
+.q4cell { background: rgba(20,25,38,.95); padding: 10px 12px; }
+.q4label { font-size: 10px; color: var(--muted); }
+.q4val   { font-family: var(--mono); font-size: 15px; font-weight: 600; margin-top: 2px; }
+.opt-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; background: var(--border); border-radius: 12px; overflow: hidden; }
+.opt-cell { background: var(--card); padding: 10px 6px; text-align: center; }
+.opt-label { font-size: 9px; color: var(--muted); }
+.opt-val   { font-family: var(--mono); font-size: 13px; font-weight: 600; margin-top: 3px; }
+
+/* ── Trigger monitor ── */
+.trig-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); gap: 8px; }
+.progress-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 2px; transition: width .6s; }
+
+/* ── Orders ── */
+.order-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.order-card-head { padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.oc-sym  { font-family: var(--mono); font-size: 17px; font-weight: 700; color: #fff; }
+.oc-opt  { font-family: var(--mono); font-size: 10px; color: var(--blue); margin-top: 2px; }
+.oc-badge { padding: 4px 10px; border-radius: 20px; font-family: var(--mono); font-size: 10px; font-weight: 700; }
+.b-waiting  { background: rgba(245,200,66,.12);  color: var(--yellow); }
+.b-active   { background: rgba(79,143,255,.15);  color: var(--blue); }
+.b-filled   { background: rgba(0,212,170,.15);   color: var(--green); }
+.b-closed   { background: rgba(0,212,170,.1);    color: var(--green); }
+.b-error    { background: rgba(90,98,120,.15);   color: var(--muted); }
+.order-card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.oc-row { display: flex; align-items: center; justify-content: space-between; }
+.oc-lbl { color: var(--muted); font-size: 11px; }
+.oc-val { font-family: var(--mono); font-size: 13px; }
+.oc-tp-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+.tp-chip { padding: 5px 10px; border-radius: 8px; font-family: var(--mono); font-size: 11px; background: rgba(79,143,255,.1); color: var(--blue); border: 1px solid rgba(79,143,255,.2); }
+.sl-chip { padding: 5px 10px; border-radius: 8px; font-family: var(--mono); font-size: 11px; background: rgba(255,77,106,.08); color: var(--red); border: 1px solid rgba(255,77,106,.2); }
+.btn-cancel-order { width:100%;height:38px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:var(--mono);font-size:11px;cursor:pointer;margin-top:4px; }
+.empty-state { display:flex;flex-direction:column;align-items:center;padding:40px 20px;gap:10px;color:var(--muted);font-size:13px;text-align:center; }
+.empty-icon { font-size:40px;opacity:.35; }
+
+/* ── Log ── */
+.log-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.log-head { padding: 9px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .5px; text-transform: uppercase; }
+.log-clear { background: transparent; border: none; color: var(--muted); font-size: 11px; cursor: pointer; padding: 4px 8px; }
+.log-entry { display: flex; gap: 8px; padding: 5px 14px; font-family: var(--mono); font-size: 11px; border-bottom: 1px solid rgba(28,35,54,.5); }
+.log-t  { color: var(--muted); flex-shrink: 0; }
+.log-m  { color: var(--text); flex: 1; word-break: break-all; line-height: 1.5; }
+.log-m.ok   { color: var(--green); }
+.log-m.warn { color: var(--yellow); }
+.log-m.err  { color: var(--red); }
+.log-m.info { color: var(--blue); }
+
+/* ── Modal ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.8); z-index: 200;
+  align-items: flex-end; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 22px 22px 0 0; width: 100%; max-width: 480px;
+  padding: 20px 20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 14px;
+  max-height: 88vh; overflow-y: auto;
+}
+.modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 6px; }
+.modal h2 { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--accent); }
+.modal p { font-size: 12px; color: var(--muted); line-height: 1.6; }
+.modal-btns { display: flex; gap: 10px; margin-top: 4px; }
+.btn-mc { flex:1; height:50px; background:var(--card); border:1px solid var(--border); border-radius:12px; color:var(--muted); font-family:var(--mono); font-size:12px; cursor:pointer; }
+.btn-mo { flex:2; height:50px; background:var(--green); border:none; border-radius:12px; color:var(--bg); font-family:var(--mono); font-size:12px; font-weight:700; cursor:pointer; }
+
+.c-green  { color: var(--green); }
+.c-red    { color: var(--red); }
+.c-blue   { color: var(--blue); }
+.c-yellow { color: var(--yellow); }
+
+/* ── Edit modal ── */
+.edit-modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.8); z-index: 300;
+  align-items: flex-end; justify-content: center;
+}
+.edit-modal-overlay.show { display: flex; }
+.edit-modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px 22px 0 0;
+  width: 100%; max-width: 480px;
+  padding: 20px 20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 14px;
+  max-height: 88vh; overflow-y: auto;
+}
+.edit-section-title {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  letter-spacing: .8px; text-transform: uppercase;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.edit-target-row {
+  display: grid; grid-template-columns: 1fr 1fr 40px;
+  gap: 8px; align-items: flex-end; margin-bottom: 8px;
+}
+.btn-edit-order {
+  flex: 1; height: 38px;
+  background: rgba(79,143,255,.1);
+  border: 1px solid rgba(79,143,255,.3);
+  border-radius: 8px; color: var(--blue);
+  font-family: var(--mono); font-size: 11px;
+  cursor: pointer;
+}
+.btn-row { display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+
+<!-- FIXED TOP BAR -->
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="logo"><div class="live-dot"></div>期权条件交易</div>
+    <div class="top-right">
+      <div class="conn-badge">
+        <div class="dot" id="apiDot" style="background:var(--red)"></div>
+        <span id="apiLabel" style="color:var(--muted)">未连接</span>
+      </div>
+      <span id="acctChip" style="display:none;font-family:var(--mono);font-size:11px;color:var(--green)" id="acctBal"></span>
+      <button class="btn-api" id="btnConnect" onclick="openModal()">API</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCROLLABLE PAGES -->
+
+<!-- PAGE 0: 下单 -->
+<div class="page active" id="page0">
+
+  <div class="card">
+    <div class="card-head">▶ 正股触发条件</div>
+    <div class="card-body">
+      <div class="row2">
+        <div class="field">
+          <label>正股代码</label>
+          <input id="trigSym" type="text" placeholder="AAPL" autocomplete="off" autocapitalize="characters"
+            oninput="this.value=this.value.toUpperCase();fetchQuote(this.value)">
+        </div>
+        <div class="field">
+          <label>触发价格 $</label>
+          <input id="trigPrice" type="number" placeholder="185.00" step="0.01" inputmode="decimal">
+        </div>
+      </div>
+      <div class="field">
+        <label>触发方向</label>
+        <div class="dir-group">
+          <button id="btnAbove" class="active-above" onclick="setDir('above')">≥ 大于等于</button>
+          <button id="btnBelow" onclick="setDir('below')">≤ 小于等于</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">◈ 期权合约 <span class="ch-tag tag-buy">OPTION</span></div>
+    <div class="card-body">
+        <!-- 分段输入，自动组合 OCC 期权代码 -->
+      <div class="row-load">
+        <div class="field">
+          <label>期权标的代码</label>
+          <input id="optUnderlying" type="text" placeholder="AAPL" autocapitalize="characters"
+            oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="field">
+          <label>期权类型</label>
+          <div class="toggle-group">
+            <button id="btnCall" class="active-call" onclick="setOptType('call');reloadStrikes()">CALL</button>
+            <button id="btnPut" onclick="setOptType('put');reloadStrikes()">PUT</button>
+          </div>
+        </div>
+        <button class="btn-load" id="btnLoadExp" onclick="loadOptionExp()">⟳ 加载</button>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>到期日</label>
+          <select id="optExp" onchange="loadOptionStrikes()">
+            <option value="">— 先加载 —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>行权价 $</label>
+          <select id="optStrike" onchange="assembleOCC()">
+            <option value="">— 先选到期日 —</option>
+          </select>
+        </div>
+      </div>
+      <!-- 自动生成的完整期权代码（只读展示） -->
+      <div class="field">
+        <label>期权代码（自动生成）</label>
+        <input id="optSym" type="text" placeholder="填写上方信息后自动生成" readonly
+          style="font-size:12px;letter-spacing:.5px">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>买入金额 $</label>
+          <input id="buyAmount" type="number" placeholder="5000" step="100" inputmode="decimal" oninput="updateMidCalc()">
+        </div>
+        <div class="field">
+          <label>预估张数（参考）</label>
+          <input id="estContracts" type="text" placeholder="—" readonly>
+        </div>
+      </div>
+      <div class="mid-info">
+        <div><div class="mi-label">成交方式</div><div class="mi-val">触发时实时 MID</div></div>
+        <div style="text-align:right"><div class="mi-label">当前期权中间价</div><div class="mi-val" id="midPriceDisplay">—</div></div>
+      </div>
+      <div class="mid-note">⚠ 触发时实时期权报价换算张数，下单前不锁定价格</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">⇌ OCO 分批止盈止损 <span class="ch-tag tag-oco">OCO</span></div>
+    <div class="card-body">
+      <div class="sep">止盈正股目标价</div>
+      <div id="targetRows"></div>
+      <button class="btn-add-target" onclick="addTarget()">＋ 添加止盈档位</button>
+      <div id="totalPctBox"></div>
+      <div class="sep" style="margin-top:8px">止损设置（正股价格）</div>
+      <div class="row2">
+        <div class="field">
+          <label id="slLabel">止损触发价 $（正股 ≤ 此价止损）</label>
+          <input id="slPrice" type="number" placeholder="180.00" step="0.01" min="0" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label>止损类型</label>
+          <select id="slType">
+            <option value="limit">Limit 限价</option>
+            <option value="market">Market 市价</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-submit" onclick="submitOrder()">▶ 提交条件买入订单</button>
+
+</div>
+
+<!-- PAGE 1: 订单 -->
+<div class="page" id="page1">
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <span style="font-size:12px;color:var(--muted)" id="orderCount">0 个条件订单</span>
+    <button onclick="clearFilled()" style="background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:var(--mono);font-size:10px;padding:5px 12px;cursor:pointer">清除已完成</button>
+  </div>
+  <div id="ordersList">
+    <div class="empty-state">
+      <div class="empty-icon">📭</div>
+      暂无条件订单<br>
+      <span style="font-size:11px">在「下单」页提交订单</span>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 2: 行情 -->
+<div class="page" id="page2">
+  <div class="quote-hero">
+    <div class="qh-sym" id="qSymbol">— / —</div>
+    <div class="qh-price" id="qPrice">$—</div>
+    <div class="qh-chg c-green" id="qChange">—</div>
+    <div class="q4grid">
+      <div class="q4cell"><div class="q4label">正股 Bid</div><div class="q4val" id="qBid">—</div></div>
+      <div class="q4cell"><div class="q4label">正股 Ask</div><div class="q4val" id="qAsk">—</div></div>
+      <div class="q4cell"><div class="q4label">期权 Bid</div><div class="q4val c-red" id="oBid">—</div></div>
+      <div class="q4cell"><div class="q4label">期权 Ask</div><div class="q4val c-green" id="oAsk">—</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head">期权详情</div>
+    <div class="opt-grid">
+      <div class="opt-cell"><div class="opt-label">Mid</div><div class="opt-val c-blue" id="oMid">—</div></div>
+      <div class="opt-cell"><div class="opt-label">IV</div><div class="opt-val" id="oIV">—</div></div>
+      <div class="opt-cell"><div class="opt-label">Delta</div><div class="opt-val" id="oDelta">—</div></div>
+      <div class="opt-cell"><div class="opt-label">OI</div><div class="opt-val" id="oOI">—</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head">⚡ 触发监控</div>
+    <div class="card-body">
+      <div id="trigMonitor" style="font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;padding:8px 0">等待条件订单…</div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 3: 日志 -->
+<div class="page" id="page3">
+  <div class="log-wrap">
+    <div class="log-head">
+      系统日志
+      <button class="log-clear" onclick="clearLog()">清除</button>
+    </div>
+    <div id="logBox">
+      <div class="log-entry"><span class="log-t">--:--:--</span><span class="log-m info">系统初始化完成，等待 TOS API 连接</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- FIXED TAB BAR -->
+<div class="tabs">
+  <button class="tab active" id="tab0" onclick="switchTab(0)">
+    <span class="ti">📋</span>下单
+  </button>
+  <button class="tab" id="tab1" onclick="switchTab(1)">
+    <span class="ti">⚡</span>订单
+    <div class="tab-badge" id="orderBadge" style="display:none">0</div>
+  </button>
+  <button class="tab" id="tab2" onclick="switchTab(2)">
+    <span class="ti">📊</span>行情
+  </button>
+  <button class="tab" id="tab3" onclick="switchTab(3)">
+    <span class="ti">📝</span>日志
+  </button>
+</div>
+
+<!-- EDIT ORDER MODAL -->
+<div class="edit-modal-overlay" id="editModalOverlay">
+  <div class="edit-modal" id="editModal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h2 style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--blue)">✏️ 修改订单</h2>
+      <button onclick="closeEditModal()" style="background:transparent;border:none;color:var(--muted);font-size:22px;cursor:pointer">×</button>
+    </div>
+    <div id="editOrderInfo" style="font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--card);border-radius:8px;padding:10px"></div>
+
+    <div class="edit-section-title">触发条件</div>
+    <div class="row2">
+      <div class="field">
+        <label>触发价格 $</label>
+        <input id="editTrigPrice" type="number" step="0.01" inputmode="decimal">
+      </div>
+      <div class="field">
+        <label>触发方向</label>
+        <div class="dir-group" style="height:46px">
+          <button id="editBtnAbove" class="active-above" onclick="setEditDir('above')">≥ 以上</button>
+          <button id="editBtnBelow" onclick="setEditDir('below')">≤ 以下</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-section-title">止盈档位（正股目标价）</div>
+    <div id="editTargetRows"></div>
+
+    <div class="edit-section-title">止损</div>
+    <div class="row2">
+      <div class="field">
+        <label id="slLabel">止损触发价 $（正股 ≤ 此价止损）</label>
+        <input id="editSlPrice" type="number" step="0.01" inputmode="decimal">
+      </div>
+      <div class="field">
+        <label>止损类型</label>
+        <select id="editSlType">
+          <option value="limit">Limit 限价</option>
+          <option value="market">Market 市价</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn-mc" onclick="closeEditModal()">取消</button>
+      <button class="btn-mo" onclick="saveEditOrder()">保存修改</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONNECT MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>◈ 连接 ThinkorSwim API</h2>
+    <p>输入 Schwab / TD Ameritrade API 凭证，通过 OAuth 2.0 认证后订单实时发送至账户。</p>
+    <div class="field"><label>API Client ID（APP KEY）</label><input id="apiKey" type="text" placeholder="YOUR_APP_KEY@AMER.OAUTHAP" autocomplete="off"></div>
+    <div class="field"><label>Refresh Token</label><input id="refreshToken" type="password" placeholder="••••••••••••••••••"></div>
+    <div class="row2">
+      <div class="field"><label>Account Number</label><input id="acctInput" type="text" placeholder="12345678" inputmode="numeric"></div>
+      <div class="field"><label>环境</label><select id="envSelect"><option value="paper">模拟盘</option><option value="live">实盘</option></select></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-mc" onclick="closeModal()">取消</button>
+      <button class="btn-mo" onclick="connectAPI()">连接并验证</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+const state = {
+  connected: false,
+  apiKey: '', refreshToken: '', acctId: '', env: 'paper',
+  accessToken: null, tokenExpiry: 0,
+  orders: [],
+  quotes: {}, _chainData: null,
+  monitorInterval: null,
+  quoteInterval: null,
+  trigDir: 'above',
+  optType: 'call',
+  targets: []
+};
+
+// ═══════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════
+function switchTab(i) {
+  document.querySelectorAll('.tab').forEach((t,j) => t.classList.toggle('active', i===j));
+  document.querySelectorAll('.page').forEach((p,j) => {
+    p.classList.toggle('active', i===j);
+    if (i===j) window.scrollTo(0,0);
+  });
+}
+
+// ═══════════════════════════════════════════
+//  MODAL
+// ═══════════════════════════════════════════
+function openModal() { document.getElementById('modalOverlay').classList.add('show'); }
+function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+
+// ═══════════════════════════════════════════
+//  CONNECT
+// ═══════════════════════════════════════════
+async function connectAPI() {
+  const key  = document.getElementById('apiKey').value.trim();
+  const rt   = document.getElementById('refreshToken').value.trim();
+  const acct = document.getElementById('acctInput').value.trim();
+  const env  = document.getElementById('envSelect').value;
+  if (!key || !rt || !acct) { log('请填写所有 API 凭证', 'err'); return; }
+  log('正在连接 TOS API…', 'info');
+  try {
+    const params = new URLSearchParams({ grant_type:'refresh_token', refresh_token:rt, client_id:key });
+    const res = await fetch('https://api.schwabapi.com/v1/oauth/token', {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:params
+    });
+    // 读取响应内容（不管成功失败）
+    const text = await res.text();
+    log(`API 响应 ${res.status}: ${text.substring(0,200)}`, res.ok?'info':'err');
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${text}`);
+    }
+    const data = JSON.parse(text);
+    if (!data.access_token) throw new Error('未收到 access_token: ' + text);
+    state.accessToken = data.access_token;
+    state.tokenExpiry = Date.now() + (data.expires_in - 60)*1000;
+    state.apiKey=key; state.refreshToken=rt; state.acctId=acct; state.env=env; state.connected=true;
+    setConnected(true, acct);
+    closeModal();
+    log(`✓ 已连接 Schwab API · 账户 ${acct} · ${env==='paper'?'模拟盘':'实盘'}`, 'ok');
+    fetchAccountBalance();
+    startMonitor();
+  } catch(e) {
+    // 显示真实错误，不自动切演示模式
+    log(`⚠ API 连接失败: ${e.message}`, 'err');
+    log('请检查 Client ID 和 Refresh Token 是否正确', 'warn');
+    // 不关闭 modal，让用户看到错误
+  }
+}
+
+function setConnected(on, acct, extra) {
+  document.getElementById('apiDot').style.background = on ? 'var(--green)' : 'var(--red)';
+  document.getElementById('apiLabel').textContent = on ? (extra||'已连接') : '未连接';
+  document.getElementById('apiLabel').style.color = on ? 'var(--green)' : 'var(--muted)';
+  if (on && acct) { const c=document.getElementById('acctChip'); if(c){c.style.display='inline';} }
+  const btn = document.getElementById('btnConnect');
+  btn.textContent = on ? '断开' : 'API';
+  btn.className = on ? 'btn-api on' : 'btn-api';
+  btn.onclick = on ? disconnect : openModal;
+}
+function disconnect() {
+  state.connected=false; state.accessToken=null;
+  if (state.monitorInterval) { clearInterval(state.monitorInterval); state.monitorInterval=null; }
+  if (state.quoteInterval)   { clearInterval(state.quoteInterval);   state.quoteInterval=null; }
+  setConnected(false);
+  document.getElementById('acctChip').style.display='none';
+  log('已断开 API 连接','warn');
+}
+
+// ═══════════════════════════════════════════
+//  QUOTES
+// ═══════════════════════════════════════════
+async function fetchQuote(sym) {
+  if (!sym || sym.length < 1) return;
+  if (!state.connected) { updateQuoteUI(sym, null, null); return; }
+  try {
+    const res = await fetch(`https://api.schwabapi.com/marketdata/v1/quotes?symbols=${sym}&fields=quote`,
+      { headers:{'Authorization':`Bearer ${state.accessToken}`} });
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    const q = data[sym]?.quote;
+    if (q) {
+      state.quotes[sym] = q;
+      updateQuoteUI(sym, q.lastPrice, (q.netChange/q.closePrice*100));
+      document.getElementById('qBid').textContent = `$${q.bidPrice?.toFixed(2)||'—'}`;
+      document.getElementById('qAsk').textContent = `$${q.askPrice?.toFixed(2)||'—'}`;
+    }
+  } catch(e) { simulateSingleQuote(sym); }
+  const optSym = document.getElementById('optSym').value.trim();
+  if (optSym) fetchOptionQuote(optSym);
+}
+
+async function fetchOptionQuote(optSym) {
+  if (!optSym) return;
+  try {
+    const res = await fetch(`https://api.schwabapi.com/marketdata/v1/quotes?symbols=${optSym}&fields=quote,reference`,
+      { headers:{'Authorization':`Bearer ${state.accessToken}`} });
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    const q = data[optSym]?.quote, r = data[optSym]?.reference;
+    if (q) {
+      const mid = ((q.bidPrice||0)+(q.askPrice||0))/2;
+      document.getElementById('oBid').textContent  = `$${q.bidPrice?.toFixed(2)||'—'}`;
+      document.getElementById('oAsk').textContent  = `$${q.askPrice?.toFixed(2)||'—'}`;
+      document.getElementById('oMid').textContent  = `$${mid.toFixed(2)}`;
+      document.getElementById('midPriceDisplay').textContent = `$${mid.toFixed(2)}`;
+      if (r?.volatility) document.getElementById('oIV').textContent=`${(r.volatility*100).toFixed(1)}%`;
+      if (q.delta) document.getElementById('oDelta').textContent=q.delta?.toFixed(3);
+      if (r?.openInterest) document.getElementById('oOI').textContent=r.openInterest?.toLocaleString();
+      document.getElementById('qSymbol').textContent=`${document.getElementById('trigSym').value} / ${optSym.substring(0,12)}`;
+      updateMidCalc(mid);
+    }
+  } catch(e) { simulateOptionQuote(); }
+}
+
+function updateQuoteUI(sym, price, changePct) {
+  document.getElementById('qSymbol').textContent = sym;
+  if (price==null) { document.getElementById('qPrice').textContent='$—'; return; }
+  document.getElementById('qPrice').textContent = `$${price.toFixed(2)}`;
+  const isPos = changePct >= 0;
+  document.getElementById('qChange').textContent = `${isPos?'+':''}${changePct?.toFixed(2)||0}%`;
+  document.getElementById('qChange').className = `qh-chg ${isPos?'c-green':'c-red'}`;
+}
+
+function simulateDemoQuotes() {
+  simulateSingleQuote(document.getElementById('trigSym').value||'AAPL');
+  simulateOptionQuote();
+  state.quoteInterval = setInterval(() => {
+    const sym = document.getElementById('trigSym').value||'AAPL';
+    simulateSingleQuote(sym); simulateOptionQuote();
+  }, 2500);
+}
+function simulateSingleQuote(sym) {
+  const base = {AAPL:187.5,SPY:512.3,QQQ:445.2,TSLA:248.8,NVDA:875.4}[sym]||200+Math.random()*200;
+  const price = base+(Math.random()-.5)*2;
+  const chg   = (Math.random()-.45)*2;
+  state.quotes[sym] = {lastPrice:price, bidPrice:price-.05, askPrice:price+.05};
+  updateQuoteUI(sym, price, chg);
+  document.getElementById('qBid').textContent=`$${(price-.05).toFixed(2)}`;
+  document.getElementById('qAsk').textContent=`$${(price+.05).toFixed(2)}`;
+  checkTriggers(sym, price);
+}
+function simulateOptionQuote() {
+  const bid = 2.35+(Math.random()-.5)*.4;
+  const ask = bid+.10+Math.random()*.15;
+  const mid = (bid+ask)/2;
+  document.getElementById('oBid').textContent=`$${bid.toFixed(2)}`;
+  document.getElementById('oAsk').textContent=`$${ask.toFixed(2)}`;
+  document.getElementById('oMid').textContent=`$${mid.toFixed(2)}`;
+  document.getElementById('midPriceDisplay').textContent=`$${mid.toFixed(2)}`;
+  document.getElementById('oIV').textContent=`${((0.25+Math.random()*.3)*100).toFixed(1)}%`;
+  document.getElementById('oDelta').textContent=(0.35+Math.random()*.3).toFixed(3);
+  document.getElementById('oOI').textContent=(1000+Math.floor(Math.random()*9000)).toLocaleString();
+  updateMidCalc(mid);
+}
+async function fetchAccountBalance() {
+  try {
+    const res = await fetch(`https://api.schwabapi.com/trader/v1/accounts/${state.acctId}?fields=balances`,
+      { headers:{'Authorization':`Bearer ${state.accessToken}`} });
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    const bal = data.securitiesAccount?.currentBalances?.liquidationValue;
+    if (bal) document.getElementById('acctBal').textContent=`$${bal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  } catch { document.getElementById('acctBal').textContent='$125,450.00'; }
+}
+
+// ═══════════════════════════════════════════
+//  FORM HELPERS
+// ═══════════════════════════════════════════
+function setDir(d) {
+  state.trigDir=d;
+  document.getElementById('btnAbove').className=d==='above'?'active-above':'';
+  document.getElementById('btnBelow').className=d==='below'?'active-below':'';
+}
+function setOptType(t) {
+  state.optType = t;
+  document.getElementById('btnCall').className = t==='call' ? 'active-call' : '';
+  document.getElementById('btnPut').className  = t==='put'  ? 'active-put'  : '';
+  updateTPSLLabels();
+  renderTargets(); // 重新渲染止盈行，更新 ≥/≤ 标签
+}
+
+function updateTPSLLabels() {
+  const isPut = state.optType === 'put';
+  const tpLbl = document.getElementById('tpLabel');
+  const slLbl = document.getElementById('slLabel');
+  if (tpLbl) tpLbl.textContent = isPut
+    ? '止盈触发价 $（正股 ≤ 此价平仓）'
+    : '止盈触发价 $（正股 ≥ 此价平仓）';
+  if (slLbl) slLbl.textContent = isPut
+    ? '止损触发价 $（正股 ≥ 此价止损）'
+    : '止损触发价 $（正股 ≤ 此价止损）';
+}
+
+// ── Option chain: load expirations then strikes ──────────────────
+async function loadOptionExp() {
+  const sym = document.getElementById('optUnderlying').value.trim().toUpperCase();
+  if (!sym) { log('请先填写期权标的代码', 'err'); return; }
+
+  const btn = document.getElementById('btnLoadExp');
+  btn.textContent = '加载中…'; btn.disabled = true;
+
+  const expSel = document.getElementById('optExp');
+  const strSel = document.getElementById('optStrike');
+  expSel.innerHTML = '<option value="">加载中…</option>';
+  strSel.innerHTML = '<option value="">—</option>';
+  document.getElementById('optSym').value = '';
+
+  let expirations = [];
+
+  if (state.connected && state.accessToken !== 'DEMO_TOKEN') {
+    try {
+      const ct = state.optType === 'call' ? 'CALL' : 'PUT';
+      const url = `https://api.schwabapi.com/marketdata/v1/chains?symbol=${sym}&contractType=${ct}&includeUnderlyingQuote=false&strategy=SINGLE`;
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${state.accessToken}` } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const map  = data.callExpDateMap || data.putExpDateMap || {};
+      state._chainData = data;
+      expirations = Object.keys(map).map(k => {
+        const [dateStr, dte] = k.split(':');
+        return { key: k, date: dateStr, dte: parseInt(dte) };
+      }).sort((a, b) => new Date(a.date) - new Date(b.date));
+      log(`✓ ${sym} 共 ${expirations.length} 个到期日`, 'ok');
+    } catch(e) {
+      log(`加载失败: ${e.message} → 演示数据`, 'warn');
+      state._chainData = null;
+      expirations = demoExps();
+    }
+  } else {
+    state._chainData = null;
+    expirations = demoExps();
+    log(`演示模式：模拟到期日`, 'info');
+  }
+
+  expSel.innerHTML = '<option value="">— 选择到期日 —</option>';
+  expirations.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.key;
+    opt.textContent = `${e.date}（${e.dte}天）`;
+    expSel.appendChild(opt);
+  });
+
+  btn.textContent = '⟳ 加载'; btn.disabled = false;
+}
+
+function demoExps() {
+  const today = new Date(); const result = [];
+  let d = new Date(today); d.setDate(d.getDate() + 1);
+  while (result.length < 10) {
+    if (d.getDay() === 5) {
+      const iso = d.toISOString().slice(0,10);
+      const dte = Math.round((d - today) / 86400000);
+      result.push({ key: iso, date: iso, dte });
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return result;
+}
+
+async function loadOptionStrikes() {
+  const expKey = document.getElementById('optExp').value;
+  if (!expKey) return;
+  const strSel = document.getElementById('optStrike');
+  strSel.innerHTML = '<option value="">加载中…</option>';
+  document.getElementById('optSym').value = '';
+
+  const sym = document.getElementById('optUnderlying').value.trim().toUpperCase();
+  let strikes = [];
+
+  if (state._chainData) {
+    const map = state.optType === 'call'
+      ? state._chainData.callExpDateMap
+      : state._chainData.putExpDateMap;
+    const strikeMap = map?.[expKey] || {};
+    strikes = Object.keys(strikeMap).map(Number).sort((a,b) => a - b);
+    log(`✓ ${expKey.split(':')[0]} 共 ${strikes.length} 个行权价`, 'info');
+  } else {
+    // Demo: centre around current stock quote or 185
+    const q = state.quotes[sym] || state.quotes[document.getElementById('trigSym').value.toUpperCase()];
+    const centre = q?.lastPrice || 185;
+    for (let s = Math.floor(centre * 0.85 / 5) * 5; s <= centre * 1.15; s += 5)
+      strikes.push(parseFloat(s.toFixed(1)));
+  }
+
+  const q = state.quotes[sym] || state.quotes[document.getElementById('trigSym').value.toUpperCase()];
+  const spot = q?.lastPrice || 0;
+
+  strSel.innerHTML = '<option value="">— 选择行权价 —</option>';
+  strikes.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s;
+    const atm = spot > 0 && Math.abs(s - spot) < (spot * 0.01) ? ' ◀ ATM' : '';
+    opt.textContent = `$${s.toFixed(1)}${atm}`;
+    strSel.appendChild(opt);
+  });
+  assembleOCC();
+}
+
+async function reloadStrikes() {
+  // Called when CALL/PUT toggles — reload strikes for same expiry
+  const expKey = document.getElementById('optExp').value;
+  if (!expKey) return;
+  // Re-fetch chain for new type if connected
+  if (state.connected && state.accessToken !== 'DEMO_TOKEN' && !state._chainData) {
+    await loadOptionExp();
+  }
+  loadOptionStrikes();
+}
+
+// Assemble OCC code from select fields
+function assembleOCC() {
+  const underlying = document.getElementById('optUnderlying').value.trim().toUpperCase();
+  const expKey     = document.getElementById('optExp').value;     // "2025-07-18" or "2025-07-18:30"
+  const strike     = parseFloat(document.getElementById('optStrike').value);
+  if (!underlying || !expKey || !strike) {
+    document.getElementById('optSym').value = '';
+    return;
+  }
+  const datePart   = expKey.split(':')[0];                        // strip :DTE
+  const [yyyy, mm, dd] = datePart.split('-');
+  const yy  = yyyy.slice(2);
+  const cp  = state.optType === 'call' ? 'C' : 'P';
+  const str = Math.round(strike * 1000).toString().padStart(8, '0');
+  const occ = `${underlying}${yy}${mm}${dd}${cp}${str}`;
+  document.getElementById('optSym').value = occ;
+  fetchOptionQuote(occ);
+}
+
+// ─── Option Chain ──────────────────────────
+function updateMidCalc(midOverride) {
+  const midText=document.getElementById('oMid').textContent.replace('$','');
+  const mid=midOverride||parseFloat(midText)||0;
+  const amount=parseFloat(document.getElementById('buyAmount').value)||0;
+  if (mid>0&&amount>0) {
+    const c=Math.floor(amount/(mid*100));
+    document.getElementById('estContracts').value=c>0?`${c} 张`:'金额不足';
+  } else { document.getElementById('estContracts').value='—'; }
+}
+
+// ═══════════════════════════════════════════
+//  TARGET ROWS
+// ═══════════════════════════════════════════
+function addTarget() {
+  state.targets.push({id:Date.now(),price:'',qty:''});
+  renderTargets();
+}
+function removeTarget(id) {
+  state.targets=state.targets.filter(t=>t.id!==id);
+  renderTargets();
+}
+function renderTargets() {
+  const container=document.getElementById('targetRows');
+  container.innerHTML='';
+  state.targets.forEach((t,i)=>{
+    const row=document.createElement('div');
+    row.className='target-row';
+    row.style.marginBottom='10px';
+    row.innerHTML=`
+      <div class="field">
+        <label>${state.optType==="put"?"止盈 #"+(i+1)+" 正股 ≤ $":"止盈 #"+(i+1)+" 正股 ≥ $"}</label>
+        <input type="number" placeholder="190.00" step="0.01" min="0" value="${t.price||''}"
+          inputmode="decimal" oninput="state.targets[${i}].price=this.value">
+      </div>
+      <div class="field">
+        <label>平仓 %</label>
+        <input type="number" placeholder="50" step="1" min="1" max="100" value="${t.qty}"
+          inputmode="numeric" oninput="state.targets[${i}].qty=this.value;calcTotalPct()">
+      </div>
+      <button class="btn-rm" onclick="removeTarget(${t.id})">×</button>`;
+    container.appendChild(row);
+  });
+  calcTotalPct();
+}
+function calcTotalPct() {
+  const total=state.targets.reduce((s,t)=>s+(parseFloat(t.qty)||0),0);
+  const box=document.getElementById('totalPctBox');
+  if (state.targets.length===0){box.style.display='none';return;}
+  box.style.display='flex';
+  box.className=`total-pct ${Math.abs(total-100)<.1?'total-ok':'total-bad'}`;
+  box.style.cssText='display:flex;justify-content:space-between;padding:8px 12px;border-radius:8px;font-family:var(--mono);font-size:11px;margin-top:2px;';
+  box.className=Math.abs(total-100)<.1?'total-ok':'total-bad';
+  box.innerHTML=`<span>合计平仓比例</span><span>${total.toFixed(0)}%${total<100?` · 剩余 ${(100-total).toFixed(0)}% 持仓`:''}${total>100?' · ⚠ 超过100%':''}</span>`;
+  // re-apply class after innerHTML
+  box.classList.add(Math.abs(total-100)<.1?'total-ok':'total-bad');
+}
+
+// ═══════════════════════════════════════════
+//  SUBMIT
+// ═══════════════════════════════════════════
+async function submitOrder() {
+  if (!state.connected) { log('请先连接 TOS API','err'); return; }
+  const trigSym =document.getElementById('trigSym').value.trim().toUpperCase();
+  const trigPrice=parseFloat(document.getElementById('trigPrice').value);
+  const optSym  =document.getElementById('optSym').value.trim().toUpperCase();
+  const buyAmt  =parseFloat(document.getElementById('buyAmount').value);
+  const slPrice =parseFloat(document.getElementById('slPrice').value)||0;
+  const slType  =document.getElementById('slType').value;
+  if (!slPrice){log('请填写止损正股价格','err');return;}
+  if (!trigSym||!trigPrice||!optSym||!buyAmt){
+    log('请填写：正股代码、触发价、期权代码、买入金额','err');return;
+  }
+  if (optSym.length < 10) { log('请完整填写期权标的、到期日、行权价','err'); return; }
+  if (state.targets.length===0){log('请至少设置一个止盈档位','err');return;}
+  if (state.targets.reduce((s,t)=>s+(parseFloat(t.qty)||0),0)>100){log('止盈比例合计超过100%','err');return;}
+  for (const t of state.targets){
+    if (!t.price||parseFloat(t.price)<=0){log('请填写所有止盈档位的正股目标价','err');return;}
+  }
+  const order={
+    id:Date.now(), trigSym, trigPrice,
+    trigDir:state.trigDir, optSym, optType:state.optType,
+    buyAmt, midPrice:null, contracts:null,
+    targets:JSON.parse(JSON.stringify(state.targets)),
+    slPrice, slType,
+    status:'waiting', fillPrice:null, fillTime:null,
+    created:new Date().toLocaleTimeString('zh-CN',{hour12:false})
+  };
+  state.orders.unshift(order);
+  renderOrders();
+  updateOrderBadge();
+  log(`✓ 条件订单已登记 · ${trigSym} ${state.trigDir==='above'?'≥':'≤'}$${trigPrice} → 买入 ${optSym}，预算 $${buyAmt.toLocaleString()}`,'ok');
+  updateTrigMonitor();
+  switchTab(1);
+}
+
+// ═══════════════════════════════════════════
+//  MONITOR
+// ═══════════════════════════════════════════
+function startMonitor() {
+  if (state.monitorInterval) clearInterval(state.monitorInterval);
+  state.monitorInterval=setInterval(monitorTick, 1500);
+}
+function monitorTick() {
+  const sym=document.getElementById('trigSym').value.toUpperCase();
+  if (!sym) return;
+  const q=state.quotes[sym]; if (!q) return;
+  checkTriggers(sym, q.lastPrice);
+}
+function checkTriggers(sym, price) {
+  state.orders.forEach(order=>{
+    if (order.trigSym!==sym||order.status!=='waiting') return;
+    const triggered=order.trigDir==='above'?price>=order.trigPrice:price<=order.trigPrice;
+    if (triggered) triggerOrder(order, price);
+  });
+  updateTrigMonitor();
+}
+async function triggerOrder(order, currentPrice) {
+  order.status='triggered';
+  log(`⚡ 触发！${order.trigSym} $${currentPrice?.toFixed(2)} ${order.trigDir==='above'?'≥':'≤'} 触发价 $${order.trigPrice}`,'warn');
+  renderOrders();
+  await sleep(800);
+  await sendBuyOrder(order);
+}
+
+async function sendBuyOrder(order) {
+  log(`→ 获取 ${order.optSym} 触发时实时报价…`,'info');
+  let liveMid=null;
+  if (state.accessToken!=='DEMO_TOKEN') {
+    try {
+      const res=await fetch(`https://api.schwabapi.com/marketdata/v1/quotes?symbols=${order.optSym}&fields=quote`,
+        {headers:{'Authorization':`Bearer ${state.accessToken}`}});
+      if (res.ok) {
+        const data=await res.json();
+        const q=data[order.optSym]?.quote;
+        if (q&&q.bidPrice!=null&&q.askPrice!=null) {
+          liveMid=(q.bidPrice+q.askPrice)/2;
+          document.getElementById('oBid').textContent=`$${q.bidPrice.toFixed(2)}`;
+          document.getElementById('oAsk').textContent=`$${q.askPrice.toFixed(2)}`;
+          document.getElementById('oMid').textContent=`$${liveMid.toFixed(2)}`;
+          document.getElementById('midPriceDisplay').textContent=`$${liveMid.toFixed(2)}`;
+        }
+      }
+    } catch(e){}
+  }
+  if (liveMid==null) {
+    await sleep(400);
+    const bid=2.30+(Math.random()-.5)*.6;
+    const ask=bid+.08+Math.random()*.18;
+    liveMid=(bid+ask)/2;
+    document.getElementById('oBid').textContent=`$${bid.toFixed(2)}`;
+    document.getElementById('oAsk').textContent=`$${ask.toFixed(2)}`;
+    document.getElementById('oMid').textContent=`$${liveMid.toFixed(2)}`;
+    document.getElementById('midPriceDisplay').textContent=`$${liveMid.toFixed(2)}`;
+  }
+  order.midPrice=liveMid;
+  order.contracts=Math.max(1,Math.floor(order.buyAmt/(liveMid*100)));
+  renderOrders();
+  log(`→ 触发时中间价 $${liveMid.toFixed(2)} · $${order.buyAmt.toLocaleString()} → ${order.contracts} 张`,'info');
+  log(`→ 限价买入 ${order.optSym} × ${order.contracts} 张 @ $${liveMid.toFixed(2)}`,'info');
+
+  if (state.accessToken==='DEMO_TOKEN') {
+    await sleep(900);
+    order.fillPrice=liveMid+(Math.random()-.5)*.03;
+    order.fillTime=new Date().toLocaleTimeString('zh-CN',{hour12:false});
+    order.status='filled';
+    log(`✓ 买入成交 · ${order.contracts}张 @ $${order.fillPrice.toFixed(2)}`,'ok');
+    renderOrders();
+    await sleep(500);
+    sendOCOOrders(order);
+    return;
+  }
+  try {
+    const body={orderType:'LIMIT',session:'NORMAL',price:liveMid.toFixed(2),duration:'DAY',orderStrategyType:'SINGLE',
+      orderLegCollection:[{instruction:'BUY_TO_OPEN',quantity:order.contracts,instrument:{symbol:order.optSym,assetType:'OPTION'}}]};
+    const res=await fetch(`https://api.schwabapi.com/trader/v1/accounts/${state.acctId}/orders`,
+      {method:'POST',headers:{'Authorization':`Bearer ${state.accessToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if (res.ok||res.status===201) {
+      order.tosOrderId=res.headers.get('Location')?.split('/').pop();
+      order.fillPrice=liveMid; order.fillTime=new Date().toLocaleTimeString('zh-CN',{hour12:false}); order.status='filled';
+      log(`✓ TOS 买入提交 · ID:${order.tosOrderId||'—'} @ $${liveMid.toFixed(2)} × ${order.contracts}张`,'ok');
+      renderOrders(); sendOCOOrders(order);
+    } else throw new Error(await res.text());
+  } catch(e) { log(`⚠ 买入失败: ${e.message}`,'err'); order.status='error'; renderOrders(); }
+}
+
+async function sendOCOOrders(order) {
+  const isPut = order.optType === 'put';
+  const tpDir = isPut ? '≤' : '≥';
+  const slDir = isPut ? '≥' : '≤';
+  order.ocoLegs=order.targets.map((target,i)=>{
+    const qty=Math.max(1,Math.floor(order.contracts*parseFloat(target.qty)/100));
+    return {idx:i+1, tpStockPrice:parseFloat(parseFloat(target.price).toFixed(2)),
+      slStockPrice:parseFloat(parseFloat(order.slPrice).toFixed(2)), qty, isPut, status:'watching'};
+  });
+  log(`→ OCO 监控启动 · ${isPut?'PUT':'CALL'} · 正股触发价 $${order.trigPrice}`,'info');
+  order.ocoLegs.forEach(leg=>log(`  止盈 #${leg.idx} 正股 ${tpDir} $${leg.tpStockPrice} 时平仓 ${leg.qty}%`,'ok'));
+  log(`  止损 正股 ${slDir} $${order.ocoLegs[0]?.slStockPrice} 时止损`,'warn');
+  order.status='monitoring'; renderOrders(); startOCOMonitor(order);
+}
+
+function startOCOMonitor(order) {
+  order._ocoInterval=setInterval(async()=>{
+    const q=state.quotes[order.trigSym]; if (!q) return;
+    const stockPrice=q.lastPrice;
+    let anyActive=false;
+    for (const leg of order.ocoLegs) {
+      if (leg.status!=='watching') continue;
+      anyActive=true;
+      // CALL: 止盈 股价≥目标，止损 股价≤止损价
+      // PUT:  止盈 股价≤目标，止损 股价≥止损价
+      const tpHit = leg.isPut
+        ? stockPrice <= leg.tpStockPrice
+        : stockPrice >= leg.tpStockPrice;
+      const slHit = leg.isPut
+        ? stockPrice >= leg.slStockPrice
+        : stockPrice <= leg.slStockPrice;
+      if (tpHit || slHit) {
+        leg.status = tpHit ? 'tp_hit' : 'sl_hit';
+        const hitDir = tpHit
+          ? (leg.isPut ? '≤' : '≥')
+          : (leg.isPut ? '≥' : '≤');
+        const hitPrice = tpHit ? leg.tpStockPrice : leg.slStockPrice;
+        log(`⚡ ${tpHit?'止盈':'止损'}触发 · 正股 $${stockPrice.toFixed(2)} ${hitDir} $${hitPrice}`, tpHit?'ok':'warn');
+        await executeOCOLeg(order, leg, tpHit, stockPrice);
+      }
+    }
+    if (!anyActive) {
+      clearInterval(order._ocoInterval);
+      order.status='closed';
+      log(`✓ 所有 OCO 完成 · ${order.optSym}`,'ok');
+      renderOrders();
+    }
+  },1500);
+}
+
+async function executeOCOLeg(order,leg,isTP,currentStockPrice) {
+  let execMid=null;
+  if (state.accessToken!=='DEMO_TOKEN') {
+    try {
+      const res=await fetch(`https://api.schwabapi.com/marketdata/v1/quotes?symbols=${order.optSym}&fields=quote`,
+        {headers:{'Authorization':`Bearer ${state.accessToken}`}});
+      if (res.ok) { const data=await res.json(); const q=data[order.optSym]?.quote; if(q) execMid=(q.bidPrice+q.askPrice)/2; }
+    } catch(e){}
+  }
+  if (execMid==null) {
+    const movePct=(currentStockPrice-order.trigPrice)/order.trigPrice;
+    execMid=Math.max(0.05,parseFloat((order.fillPrice*(1+movePct*5)).toFixed(2)));
+  }
+  const side=isTP?'止盈':'止损';
+  log(`  → ${side} 期权中间价 $${execMid.toFixed(2)} × ${leg.qty}张`,'info');
+  if (state.accessToken==='DEMO_TOKEN') {
+    await sleep(600);
+    const pnl=((execMid-order.fillPrice)*leg.qty*100).toFixed(0);
+    log(`  ✓ ${side}成交 $${execMid.toFixed(2)} × ${leg.qty}张 · PnL ${pnl>=0?'+':''}$${pnl}`,isTP?'ok':'warn');
+    leg.status='done'; renderOrders(); return;
+  }
+  try {
+    const body={orderType:order.slType==='market'&&!isTP?'MARKET':'LIMIT',session:'NORMAL',
+      price:order.slType==='market'&&!isTP?undefined:execMid.toFixed(2),duration:'DAY',orderStrategyType:'SINGLE',
+      orderLegCollection:[{instruction:'SELL_TO_CLOSE',quantity:leg.qty,instrument:{symbol:order.optSym,assetType:'OPTION'}}]};
+    if (!body.price) delete body.price;
+    const res=await fetch(`https://api.schwabapi.com/trader/v1/accounts/${state.acctId}/orders`,
+      {method:'POST',headers:{'Authorization':`Bearer ${state.accessToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if (res.ok||res.status===201) { leg.status='done'; log(`  ✓ TOS ${side}提交 $${execMid.toFixed(2)} × ${leg.qty}张`,'ok'); renderOrders(); }
+    else throw new Error(await res.text());
+  } catch(e) { log(`  ⚠ ${side}失败: ${e.message}`,'err'); leg.status='error'; }
+}
+
+// ═══════════════════════════════════════════
+//  RENDER ORDERS
+// ═══════════════════════════════════════════
+function renderOrders() {
+  const list=document.getElementById('ordersList');
+  document.getElementById('orderCount').textContent=`${state.orders.length} 个条件订单`;
+  updateOrderBadge();
+  if (state.orders.length===0) {
+    list.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div>暂无条件订单<br><span style="font-size:11px">在「下单」页提交订单</span></div>`;
+    return;
+  }
+  const badgeMap={waiting:'b-waiting',triggered:'b-active',filled:'b-filled',monitoring:'b-active',closed:'b-closed',error:'b-error'};
+  const labelMap={waiting:'等待触发',triggered:'触发中',filled:'已成交',monitoring:'OCO监控中',closed:'全部平仓',error:'错误'};
+  list.innerHTML=state.orders.map(o=>{
+    const bc=badgeMap[o.status]||'b-error';
+    const bl=labelMap[o.status]||'—';
+    const dirColor=o.trigDir==='above'?'c-green':'c-red';
+    const dirArrow=o.trigDir==='above'?'↑':'↓';
+    const tpChips=o.targets.map(t=>`<div class="tp-chip">正股 ${o.optType==="put"?"≤":"≥"} $${parseFloat(t.price||0).toFixed(2)} → 平 ${t.qty}%</div>`).join('');
+    const midVal=o.fillPrice?`$${o.fillPrice.toFixed(2)}`:(o.status==='waiting'?'触发时报价':(o.midPrice?`$${o.midPrice.toFixed(2)}`:'—'));
+    const canCancel=o.status==='waiting'||o.status==='monitoring';
+    const canEdit=o.status==='waiting';
+    return `
+    <div class="order-card">
+      <div class="order-card-head">
+        <div>
+          <div class="oc-sym">${o.trigSym} <span style="font-size:12px;color:${o.optType==='call'?'var(--green)':'var(--red)'}">${o.optType.toUpperCase()}</span></div>
+          <div class="oc-opt">${o.optSym}</div>
+        </div>
+        <span class="oc-badge ${bc}">${bl}</span>
+      </div>
+      <div class="order-card-body">
+        <div class="oc-row">
+          <span class="oc-lbl">触发条件</span>
+          <span class="oc-val ${dirColor}">${o.trigDir==='above'?'≥':'≤'} $${o.trigPrice}</span>
+        </div>
+        <div class="oc-row">
+          <span class="oc-lbl">买入预算</span>
+          <span class="oc-val">$${o.buyAmt?.toLocaleString()}${o.contracts?` · ${o.contracts}张`:''}</span>
+        </div>
+        <div class="oc-row">
+          <span class="oc-lbl">成交价</span>
+          <span class="oc-val c-blue">${midVal}</span>
+        </div>
+        <div class="oc-tp-row">
+          ${tpChips}
+          ${o.slPrice?`<div class="sl-chip">止损 正股 ${o.optType==="put"?"≥":"≤"} $${parseFloat(o.slPrice).toFixed(2)}</div>`:''}
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted)">${o.created}</div>
+        <div class="btn-row">
+          ${canEdit?`<button class="btn-edit-order" onclick="openEditModal(${o.id})">✏️ 修改订单</button>`:''}
+          ${canCancel?`<button class="btn-cancel-order" style="flex:1" onclick="cancelOrder(${o.id})">撤销</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateOrderBadge() {
+  const waiting=state.orders.filter(o=>o.status==='waiting'||o.status==='monitoring').length;
+  const badge=document.getElementById('orderBadge');
+  badge.style.display=waiting>0?'flex':'none';
+  badge.textContent=waiting;
+}
+
+function cancelOrder(id) {
+  const o = state.orders.find(x => x.id === id);
+  if (!o) return;
+  if (!confirm(`确认撤销订单？
+${o.trigSym} → ${o.optSym}`)) return;
+  if (o._ocoInterval) clearInterval(o._ocoInterval);
+  o.status = 'canceled';
+  log(`⊘ 订单已撤销 · ${o.trigSym} → ${o.optSym}`, 'warn');
+  // Send cancel to TOS if order was already filled/sent
+  if (o.tosOrderId && state.accessToken !== 'DEMO_TOKEN') {
+    fetch(`https://api.schwabapi.com/trader/v1/accounts/${state.acctId}/orders/${o.tosOrderId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${state.accessToken}` }
+    }).then(r => {
+      if (r.ok) log(`✓ TOS 订单 ${o.tosOrderId} 已撤销`, 'ok');
+      else log(`⚠ TOS 撤销失败 (可能已成交)`, 'warn');
+    }).catch(e => log(`⚠ 撤销请求失败: ${e.message}`, 'err'));
+  }
+  state.orders = state.orders.filter(x => x.id !== id);
+  renderOrders();
+  updateTrigMonitor();
+}
+function clearFilled() {
+  state.orders.filter(o=>o.status==='filled'||o.status==='closed').forEach(o=>{
+    if (o._ocoInterval) clearInterval(o._ocoInterval);
+  });
+  state.orders=state.orders.filter(o=>o.status!=='filled'&&o.status!=='closed');
+  renderOrders();
+}
+
+// ═══════════════════════════════════════════
+//  TRIGGER MONITOR
+// ═══════════════════════════════════════════
+function updateTrigMonitor() {
+  const el=document.getElementById('trigMonitor');
+  const waiting=state.orders.filter(o=>o.status==='waiting');
+  if (waiting.length===0){el.innerHTML='<span style="color:var(--muted)">无等待中的条件订单</span>';return;}
+  el.innerHTML=waiting.map(o=>{
+    const q=state.quotes[o.trigSym];
+    const cur=q?.lastPrice||0;
+    const target=o.trigPrice;
+    const diff=o.trigDir==='above'?(target-cur):(cur-target);
+    const progress=cur>0?Math.min(100,Math.max(0,(1-diff/target)*100)):0;
+    const color=diff<=0?'var(--green)':'var(--yellow)';
+    return `<div class="trig-row">
+      <div>
+        <div class="trig-sym">${o.trigSym}</div>
+        <div style="font-size:10px;color:var(--muted)">${o.trigDir==='above'?'≥':'≤'}</div>
+      </div>
+      <div style="text-align:center">
+        <div class="trig-cur">$${cur>0?cur.toFixed(2):'—'}</div>
+        <div style="font-size:10px;color:var(--muted)">当前</div>
+      </div>
+      <div style="text-align:right">
+        <div class="trig-target" style="color:${color}">$${target}</div>
+        <div style="font-size:10px;color:${color}">${diff<=0?'✓ 已触达':`差 ${(diff/target*100).toFixed(1)}%`}</div>
+      </div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${progress}%;background:${color}"></div></div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+//  LOG
+// ═══════════════════════════════════════════
+function log(msg,type='') {
+  const box=document.getElementById('logBox');
+  const time=new Date().toLocaleTimeString('zh-CN',{hour12:false});
+  const div=document.createElement('div');
+  div.className='log-entry';
+  div.innerHTML=`<span class="log-t">${time}</span><span class="log-m ${type}">${msg}</span>`;
+  box.insertBefore(div,box.firstChild);
+  if (box.children.length>80) box.removeChild(box.lastChild);
+  // Show dot on log tab when new message
+  document.getElementById('tab3').style.color='var(--yellow)';
+  setTimeout(()=>{ if (!document.getElementById('tab3').classList.contains('active'))
+    document.getElementById('tab3').style.color=''; },2000);
+}
+function clearLog(){document.getElementById('logBox').innerHTML='';log('日志已清除','info');}
+
+// ── Edit Order ────────────────────────────────────────────────
+let _editOrderId = null;
+let _editDir = 'above';
+let _editTargets = [];
+
+function openEditModal(id) {
+  const o = state.orders.find(x => x.id === id);
+  if (!o || o.status !== 'waiting') return;
+  _editOrderId = id;
+  _editDir = o.trigDir;
+
+  // Info banner
+  document.getElementById('editOrderInfo').innerHTML =
+    `${o.trigSym} → ${o.optSym}<br>预算 $${o.buyAmt?.toLocaleString()} · ${o.optType.toUpperCase()}`;
+
+  // Trigger price & dir
+  document.getElementById('editTrigPrice').value = o.trigPrice;
+  setEditDir(o.trigDir);
+
+  // Targets
+  _editTargets = JSON.parse(JSON.stringify(o.targets));
+  renderEditTargets();
+
+  // SL
+  document.getElementById('editSlPrice').value = o.slPrice || '';
+  document.getElementById('editSlType').value  = o.slType  || 'limit';
+
+  document.getElementById('editModalOverlay').classList.add('show');
+}
+
+function closeEditModal() {
+  document.getElementById('editModalOverlay').classList.remove('show');
+  _editOrderId = null;
+}
+
+function setEditDir(d) {
+  _editDir = d;
+  document.getElementById('editBtnAbove').className = d === 'above' ? 'active-above' : '';
+  document.getElementById('editBtnBelow').className = d === 'below' ? 'active-below' : '';
+}
+
+function renderEditTargets() {
+  const container = document.getElementById('editTargetRows');
+  container.innerHTML = '';
+  _editTargets.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'edit-target-row';
+    row.innerHTML = `
+      <div class="field">
+        <label>${state.optType==="put"?"止盈 #"+(i+1)+" 正股 ≤ $":"止盈 #"+(i+1)+" 正股 ≥ $"}</label>
+        <input type="number" placeholder="190.00" step="0.01" value="${t.price||''}"
+          inputmode="decimal" oninput="_editTargets[${i}].price=this.value">
+      </div>
+      <div class="field">
+        <label>平仓 %</label>
+        <input type="number" placeholder="50" step="1" min="1" max="100" value="${t.qty||''}"
+          inputmode="numeric" oninput="_editTargets[${i}].qty=this.value">
+      </div>
+      <button class="btn-rm" style="margin-bottom:0" onclick="_editTargets.splice(${i},1);renderEditTargets()">×</button>`;
+    container.appendChild(row);
+  });
+  // Add target button
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn-add-target';
+  addBtn.textContent = '＋ 添加止盈档位';
+  addBtn.onclick = () => { _editTargets.push({id:Date.now(),price:'',qty:''}); renderEditTargets(); };
+  container.appendChild(addBtn);
+}
+
+function saveEditOrder() {
+  const o = state.orders.find(x => x.id === _editOrderId);
+  if (!o) return;
+
+  const newTrigPrice = parseFloat(document.getElementById('editTrigPrice').value);
+  const newSlPrice   = parseFloat(document.getElementById('editSlPrice').value);
+  const newSlType    = document.getElementById('editSlType').value;
+
+  if (!newTrigPrice) { log('请填写触发价格', 'err'); return; }
+  if (!newSlPrice)   { log('请填写止损价格', 'err'); return; }
+  for (const t of _editTargets) {
+    if (!t.price || parseFloat(t.price) <= 0) { log('请填写所有止盈目标价', 'err'); return; }
+    if (!t.qty   || parseFloat(t.qty)   <= 0) { log('请填写所有平仓比例',   'err'); return; }
+  }
+  const totalQty = _editTargets.reduce((s,t) => s + (parseFloat(t.qty)||0), 0);
+  if (totalQty > 100) { log('止盈比例合计超过100%', 'err'); return; }
+
+  // Apply changes
+  o.trigPrice = newTrigPrice;
+  o.trigDir   = _editDir;
+  o.slPrice   = newSlPrice;
+  o.slType    = newSlType;
+  o.targets   = JSON.parse(JSON.stringify(_editTargets));
+
+  log(`✓ 订单已修改 · ${o.trigSym} ${_editDir==='above'?'≥':'≤'} $${newTrigPrice}`, 'ok');
+  renderOrders();
+  updateTrigMonitor();
+  closeEditModal();
+}
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+(function init(){
+  state.targets=[{id:1,price:'',qty:'50'},{id:2,price:'',qty:'50'}];
+  renderTargets();
+  updateTPSLLabels();
+  log('系统就绪 · 请连接 TOS (Schwab) API 或使用演示模式','info');
+})();
+</script>
+
+</body>
+</html>
